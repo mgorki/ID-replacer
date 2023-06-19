@@ -1,0 +1,6 @@
+os
+pathlib
+shutil
+pandas
+openpyxl
+PySimpleGUI

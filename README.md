@@ -3,7 +3,7 @@ Small program that helps you replacing replacing IDs (e.g., from participants in
 Start program by running *substituteID.py*
 
 ## Dependencies
-### This program requires the following libraries:
+### This program requires the following python libraries:
 - os
 - pathlib
 - shutil

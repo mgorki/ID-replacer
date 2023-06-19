@@ -4,11 +4,11 @@ Start program by running *substituteID.py*
 
 ## Dependencies
 ### This program requires the following python libraries:
-- os
-- pathlib
-- shutil
-- pandas
-- openpyxl
-- PySimpleGUI
+- [os](https://docs.python.org/3/library/os.html)
+- [pathlib](https://docs.python.org/3/library/pathlib.html)
+- [shutil](https://docs.python.org/3/library/shutil.html)
+- [pandas](https://pandas.pydata.org/docs/)
+- [openpyxl](https://openpyxl.readthedocs.io/en/stable/)
+- [PySimpleGUI](https://pypi.org/project/PySimpleGUI/)
 
 ### You can install all required libraries at once with [pip](https://pip.pypa.io/en/stable/) by running: pip install -r requirements.txt

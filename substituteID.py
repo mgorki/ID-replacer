@@ -16,8 +16,8 @@ class TableFile:
     #self.filenameOut = filenameOut
 
 
-def listFilesInFolder(folderPath):  # Returns a list of all json, txt, csv, xlsx files in a folder and (recursively) all its subfolders
-    patterns = [".json", ".csv", ".xlsx", ".txt"]
+def listFilesInFolder(folderPath: str, patterns: list) -> list:  # Returns a list of all json, txt, csv, xlsx files in a folder and (recursively) all its subfolders
+    #patterns = [".json", ".csv", ".xlsx", ".txt"]
     filepaths = []
     for pattern in patterns:
         folder = Path(folderPath) 
@@ -35,12 +35,17 @@ def listFilesInFolder(folderPath):  # Returns a list of all json, txt, csv, xlsx
 #   (3a) a list of TableFile objects (see above; one for each table file)
 #   (3b) a tuple of the original IDs
 #   (3c) a tuble of the new IDs
-def cleanTables(filesIn, idColNames, filenamePrefix, saveFolder):
+def cleanTables(filesIn, idColNames, filenamePrefix, saveFolder, inPlace=False):
     tables = []
     mappingDF = pd.DataFrame(columns=["originalId"])
     originalIds = []
 
     for fIn in filesIn:
+        if inPlace == True:  # If the user has chosen to save the results in the files original directory
+            saveFolder = os.path.dirname(fIn)
+        else:
+            pass
+
         if os.path.isfile(os.path.join(saveFolder, str(filenamePrefix + os.path.basename(fIn)))) == True:
             overwrite = GUI.overWriteConfirmation(str(filenamePrefix + os.path.basename(fIn)))
             if overwrite == True:
@@ -92,15 +97,19 @@ def cleanTables(filesIn, idColNames, filenamePrefix, saveFolder):
     except:
         print("No empty IDs found")
     mappingDF["originalId"] = originalIds
-    mappingDF.drop_duplicates().reset_index().dropna(inplace = True)
-    print(mappingDF)
-    mappingDF["newId"] = mappingDF["originalId"].index.values + 1  # "new" IDs created from the index of the old IDs
-    print(mappingDF["newId"])
-    print(mappingDF["originalId"])
+    #print("mapping before dropping duplicates", mappingDF)
+    mappingDF = mappingDF.drop(mappingDF[mappingDF.originalId.isnull()].index)  # Dropping rows where the original ID is an empty cell
+    mappingDF = mappingDF.drop(mappingDF[mappingDF.originalId == ""].index)  # Dropping rows where the original ID is just an empty string 
+    mappingDF = mappingDF.drop_duplicates(subset=['originalId']).reset_index(drop=True)#.dropna(inplace = True)  # Getting rid of duplicates and resetting index
+    #print(mappingDF)
+    #print(mappingDF["originalId"].index.values)
+    mappingDF["newId"] = mappingDF["originalId"].index.values.astype(int) + 1  # "new" IDs created from the index of the old IDs //  mappingDF["originalId"].index.values + 1
+    #print(mappingDF["newId"])
+    #print(mappingDF["originalId"])
     originalIdsUnique = tuple(mappingDF["originalId"])
     newIds = tuple(mappingDF["newId"])
 
-    return tables, originalIdsUnique, newIds
+    return tables, originalIdsUnique, newIds, mappingDF
 
 
 ### Writes files (in the same format as the original files) for the tables where the original ID is replaced by the new id. ###
@@ -133,7 +142,7 @@ def writeTables(tables, originalIds, newIds):
 ### Save copies of files with a new filename, where IDs in the filename are substituted. 
 # The IDs and their substitutes must be provided by the arguments originalIds, newIDs
 # Files of the same name in the location defined by the saveFolder argument will NOT be overwritten (a message is shown in the console)
-def cleanFilenames(filesIn, saveFolder, originalIds, newIDs):
+def cleanFilenames(filesIn, saveFolder, originalIds, newIDs, inPlace=False):
     counter = 0
     for file in filesIn:
         if Path(file).is_file():
@@ -141,6 +150,11 @@ def cleanFilenames(filesIn, saveFolder, originalIds, newIDs):
             print(name)
             for check, rep in zip(originalIds, newIds):
                 name = name.replace(str(check), str(rep))
+
+            if inPlace:  # If user has chosen to save new files in the same directory as the original files
+                saveFolder = os.path.dirname(file)  # Set the saveFolder to the folder of the original file
+            else:
+                pass
             newfile = os.path.join(saveFolder, name)
             print(newfile)
             if not os.path.isfile(newfile):
@@ -155,7 +169,7 @@ def cleanFilenames(filesIn, saveFolder, originalIds, newIDs):
 
 ### User chooses (GUI) whether he/she wants to go over a whole folder (including subfolders) and all its redable content or select specific files
 if GUI.folderMode() == True:  
-    files = listFilesInFolder(GUI.ChooseLoadingFolder())
+    files = listFilesInFolder(folderPath=GUI.ChooseLoadingFolder(), patterns=[".json", ".csv", ".xlsx", ".txt"])
 else:
     files = GUI.ChooseFiles()
 
@@ -164,17 +178,47 @@ else:
 # If he/she wants to safe them: chooses (GUI) a folder for saving new files and a prefix for the new files' names
 safeTables = GUI.safeTables()
 if safeTables == True:
-    saveDirTables = GUI.ChooseSavingFolder()
+    inPlace = GUI.safeInPlace()
+    if inPlace == False:
+        saveDirTables = GUI.ChooseSavingFolder()
+    else: 
+        saveDirTables = "placeholder"
 else:
     saveDirTables = "placeholder"
 identifierColNames = GUI.ChooseIdentifierColumn()
 prefix=GUI.ChooseFilePrefix()
 
-tables, uniqueOriginalIds, newIds = cleanTables (filesIn=files, idColNames=identifierColNames, filenamePrefix=prefix, saveFolder=saveDirTables)
+tables, uniqueOriginalIds, newIds, mappingDF = cleanTables(filesIn=files, idColNames=identifierColNames, filenamePrefix=prefix, saveFolder=saveDirTables, inPlace=inPlace)
 if safeTables:
     writeTables(tables=tables, originalIds=uniqueOriginalIds, newIds=newIds) # TableFiles are written
 else:
     pass
+
+### User chooses whether the mapping of original and new IDs be saved in a file (csv), and if so, he/she cooses a folder and a filename 
+if GUI.saveMapping() == True:
+    while True:
+        while True:  # Checking if chosen folder is valid (if not user has to choose again)
+            saveMappingDir = GUI.ChooseSavingFolder()
+            if os.path.isdir(saveMappingDir):
+                break
+            else:
+                GUI.InvalidFolder()
+                pass
+        saveMappingFilename = GUI.ChooseFileName()
+        saveMappingPath = os.path.join(saveMappingDir, (saveMappingFilename + ".csv"))
+
+        if os.path.isfile(saveMappingPath):  # If file already exists
+            overwrite = GUI.overWriteConfirmation(str(saveMappingPath))  # Dialog if ixisting file should be overwritten
+            if overwrite == True:
+                mappingDF.to_csv(saveMappingPath, index=False)
+                break
+            else:
+                pass
+        else:
+            mappingDF.to_csv(saveMappingPath, index=False)
+            break
+else:
+    del mappingDF
 
 
 ### User chooses (GUI) whether he/she wants to substitute IDs in filenames (the IDs must have been identified in the tables read in before) ###
@@ -183,7 +227,12 @@ fileNameEdit = False
 fileNameEdit = GUI.editingFilenames()
 if fileNameEdit == True:
     try:
-        cleanFilenames(filesIn=GUI.ChooseFiles(), saveFolder=GUI.ChooseSavingFolder(), originalIds=uniqueOriginalIds, newIDs=newIds)
+        inPlace = GUI.safeInPlace()
+        if inPlace == False:
+            saveDirFiles = GUI.ChooseSavingFolder()
+        else: 
+            saveDirFiles = "placeholder"
+        cleanFilenames(filesIn=GUI.ChooseFiles(), saveFolder=saveDirFiles, originalIds=uniqueOriginalIds, newIDs=newIds, inPlace=inPlace)
     except:
         print("An error occured while trying to change filenames :-(")
 else:

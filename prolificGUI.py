@@ -29,6 +29,24 @@ def MissingPath():
 
     window.close()
 
+
+def InvalidFolder():
+    layout = [[sg.Text("The folder you specified does not exist/is not valid!")], [sg.Button("OK")]]
+
+    # Create the window
+    window = sg.Window("Error", layout)
+
+    # Create an event loop
+    while True:
+        event, values = window.read()
+        # End program if user closes window or
+        # presses the OK button
+        if event == "OK" or event == sg.WIN_CLOSED:
+            break
+
+    window.close()
+
+
 def MissingInput():
     layout = [[sg.Text("You entered no input!")], [sg.Button("OK")]]
 
@@ -63,6 +81,25 @@ def End(savepathTables):
     window.close()
 
 
+def safeInPlace():
+    layout = [[sg.Text(("Do you want to save the new files in the same folders als the original ones or in another place?"))], [sg.Button("In the same folders"), sg.Button("In another place")],] #Tables saved to %s"%(str(savepathTables))))], [sg.Button("OK")]]
+    # Create the window
+    window = sg.Window("Where to save the results?", layout)
+
+    # Create an event loop
+    while True:
+        event, values = window.read()
+        # End program if user closes window or
+        # presses the OK button
+        if (event == "In the same folders") or (event == "In another place") or (event == sg.WIN_CLOSED):
+            break
+    window.close()
+    if event == "In the same folders":
+        return True
+    else:
+        return False
+
+
 def folderMode():
     ch = sg.popup_ok_cancel("Do you want to apply ID substitution on a whole folder (including subfolders and all files contained)? ", 
     "Press OK to continue editing whole folders", 
@@ -73,6 +110,7 @@ def folderMode():
     if ch=="Cancel":
         print ("You pressed Cancel")
         return False
+
 
 def overWriteConfirmation(filename):
     ch = sg.popup_ok_cancel(str("Press Ok to proceed OVERWRITING " + filename), "Press cancel to skip",  title="OverwriteSkip")
@@ -135,6 +173,7 @@ def ChooseSavingFolder():
         print(folder)
         return folder
 
+
 def ChooseIdentifierColumn():
     identInp = sg.popup_get_text('''Please, enter the EXACT names of the columns from which IDs can be identified, separated by a KOMMA.  
     -> Do NOT use blank spaces after the komma (unless they are part of the column name). 
@@ -151,14 +190,45 @@ def ChooseIdentifierColumn():
 
 def ChooseFilePrefix():
     prefix = sg.popup_get_text('''Please, choose a prefix for the filenames of the output files
-    -> This is to your own safety, so that you do not confuse or overwrite the original files and the files where IDs have been substituted.''', title="Enter column-names")
+    -> This is to your own safety, so that you do not confuse or overwrite the original files and the files where IDs have been substituted.''', title="Enter file-prefix")
     if prefix == "" or None:
         MissingInput()
         ChooseFilePrefix()
     else:
         print(prefix)
         return prefix
+
+
+def saveMapping():
+    layout = [[sg.Text(("""Do you want to save the mapping of new IDs to original IDs in a (csv) file?
+        -> Keep in mind that this is sensitive data as it allows to trace back the new IDs to the original ones!"""))], 
+        [sg.Button("Yes"), sg.Button("No")],] #Tables saved to %s"%(str(savepathTables))))], [sg.Button("OK")]]
     
+    window = sg.Window("Save mapping of IDs into a file?", layout) # Create the window
+
+    # Create an event loop
+    while True:
+        event, values = window.read()
+        # End program if user closes window or
+        # presses the OK button
+        if (event == "Yes") or (event == "No") or (event == sg.WIN_CLOSED):
+            break
+    window.close()
+    if event == "Yes":
+        return True
+    else:
+        return False
+
+
+def ChooseFileName():
+    fileName = sg.popup_get_text('''Please, choose a name of the output file (without any ending like e.g., .csv)''', title="Enter filename")
+    if fileName == "" or None:
+        MissingInput()
+        ChooseFileName()
+    else:
+        print(fileName)
+        return fileName
+
 
 def editingFilenames():
     ch = sg.popup_ok_cancel("Do you want to edit filenames too? ", "Press OK to continue editing filenames", "Press Cancel to skip",  title="Edit filenames?")
@@ -185,3 +255,5 @@ def chooseEditFiles():
 #ChooseIdentifierColumn()
 #ChooseFilePrefix()
 #overWriteConfirmation("filename_XYZ")
+#print(safeInPlace())
+#print(saveMapping())

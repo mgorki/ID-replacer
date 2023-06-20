@@ -11,4 +11,4 @@ Start program by running *substituteID.py*
 - [openpyxl](https://openpyxl.readthedocs.io/en/stable/)
 - [PySimpleGUI](https://pypi.org/project/PySimpleGUI/)
 
-**You can install all required libraries at once with the requirements.txt file and [pip](https://pip.pypa.io/en/stable/) by running: pip install -r requirements.txt**
+**You can install all required libraries at once with the *requirements.txt* file and [*pip*](https://pip.pypa.io/en/stable/) by running: pip install -r requirements.txt**

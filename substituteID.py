@@ -1,12 +1,14 @@
 import os
 from pathlib import Path
-#import fnmatch
 import shutil
-#import glob
 import pandas as pd
 import openpyxl
 import prolificGUI as GUI 
 
+
+version = "0.9"
+tableFileTypes = [("txt", "*.txt"),("json", "*.json"),("Excel", "*.xlsx"), ("csv", "*.csv")]
+notableFileTypes = [("txt", "*.txt"),("json", "*.json"),("Excel", "*.xlsx"), ("csv", "*.csv"), ("png", "*.png"), ("svg", "*.svg"), ("jpg", "*.jpg"), ("jpeg", "*.jpeg")]
 
 class TableFile:
   def __init__(self, path, fileFormat, df):
@@ -16,14 +18,21 @@ class TableFile:
     #self.filenameOut = filenameOut
 
 
-def listFilesInFolder(folderPath: str, patterns: list) -> list:  # Returns a list of all json, txt, csv, xlsx files in a folder and (recursively) all its subfolders
+### Returns a list of all files in a folder and (recursively) all its subfolders. 
+## If a list is given as the pattterns argument only files ending on the pattern will be returned (e.g., only table files of the json, txt, csv, xlsx format if patterns = [".json", ".csv", ".xlsx", ".txt"])
+def listFilesInFolder(folderPath: str, patterns = None) -> list:  
     #patterns = [".json", ".csv", ".xlsx", ".txt"]
     filepaths = []
-    for pattern in patterns:
+    if not patterns == None:
+        for pattern in patterns:
+            folder = Path(folderPath) 
+            for filename in map(str, list(folder.rglob("*"))): 
+                if filename.endswith(pattern):
+                    filepaths.append(filename)
+    else:
         folder = Path(folderPath) 
         for filename in map(str, list(folder.rglob("*"))): 
-            if filename.endswith(pattern):
-                filepaths.append(filename)
+            filepaths.append(filename)
 
     return filepaths                
 
@@ -34,7 +43,8 @@ def listFilesInFolder(folderPath: str, patterns: list) -> list:  # Returns a lis
 # 3. Returns: 
 #   (3a) a list of TableFile objects (see above; one for each table file)
 #   (3b) a tuple of the original IDs
-#   (3c) a tuble of the new IDs
+#   (3c) a tuple of the new IDs
+#   (3d) a pandas dataframe summarizing the mapping of new IDs to the original IDs
 def cleanTables(filesIn, idColNames, filenamePrefix, saveFolder, inPlace=False):
     tables = []
     mappingDF = pd.DataFrame(columns=["originalId"])
@@ -167,20 +177,39 @@ def cleanFilenames(filesIn, saveFolder, originalIds, newIDs, inPlace=False):
     print(str(counter), " files have been saved with the new ID in their filename")
 
 
+###############################
+##### Running the program #####
+###############################
+
+if not GUI.welcome(version) == "Continue":  # Show welcome-window. 
+    print("Operation aborted. Program is closing.")  # If the user chooses another optiopn than to click on continue print message...  
+    exit()  # ...and exit
+
 ### User chooses (GUI) whether he/she wants to go over a whole folder (including subfolders) and all its redable content or select specific files
 if GUI.folderMode() == True:  
     files = listFilesInFolder(folderPath=GUI.ChooseLoadingFolder(), patterns=[".json", ".csv", ".xlsx", ".txt"])
 else:
-    files = GUI.ChooseFiles()
+    files = GUI.ChooseFiles(tableFileTypes)
 
 
 ### User chooses (GUI) whether he/she wants so save table files (don't safe them if you just want to edit e.g., the file-names of images)
 # If he/she wants to safe them: chooses (GUI) a folder for saving new files and a prefix for the new files' names
 safeTables = GUI.safeTables()
 if safeTables == True:
-    inPlace = GUI.safeInPlace()
+    inPlace = GUI.safeInPlace()  # The user is asked whether to save the results in the results in the same folder(s) as the original files 
     if inPlace == False:
-        saveDirTables = GUI.ChooseSavingFolder()
+        while True:
+            saveDirTables = GUI.ChooseSavingFolder()  # The user has to choose where to save the results
+            if os.path.isdir(saveDirTables):  # Checking if chosen folder is valid (if not user has to choose again)
+                break
+            elif saveDirTables == None:  # This is the case if the user clicks on "Cancel"
+                print("saving tables canceled")
+                saveDirTables = "placeholder"
+                safeTables = False
+                break
+            else:
+                GUI.InvalidFolder()
+                pass
     else: 
         saveDirTables = "placeholder"
 else:
@@ -195,44 +224,69 @@ else:
     pass
 
 ### User chooses whether the mapping of original and new IDs be saved in a file (csv), and if so, he/she cooses a folder and a filename 
-if GUI.saveMapping() == True:
+saveMapping = GUI.saveMapping()
+if saveMapping == True:
     while True:
         while True:  # Checking if chosen folder is valid (if not user has to choose again)
             saveMappingDir = GUI.ChooseSavingFolder()
             if os.path.isdir(saveMappingDir):
                 break
+            elif saveMappingDir == None: # This is the case if the user clicks on "Cancel"
+                print("saving mapping canceled")
+                saveMapping = False
+                break
             else:
                 GUI.InvalidFolder()
                 pass
-        saveMappingFilename = GUI.ChooseFileName()
-        saveMappingPath = os.path.join(saveMappingDir, (saveMappingFilename + ".csv"))
+        if not saveMapping == False:  # Check that the operation has not been canceled in the meantime
+            saveMappingFilename = GUI.ChooseFileName()
+            saveMappingPath = os.path.join(saveMappingDir, (saveMappingFilename + ".csv"))
 
-        if os.path.isfile(saveMappingPath):  # If file already exists
-            overwrite = GUI.overWriteConfirmation(str(saveMappingPath))  # Dialog if ixisting file should be overwritten
-            if overwrite == True:
+            if os.path.isfile(saveMappingPath):  # If file already exists
+                overwrite = GUI.overWriteConfirmation(str(saveMappingPath))  # Dialog if ixisting file should be overwritten
+                if overwrite == True:
+                    mappingDF.to_csv(saveMappingPath, index=False)
+                    break
+                else:
+                    pass
+            else:
                 mappingDF.to_csv(saveMappingPath, index=False)
                 break
-            else:
-                pass
         else:
-            mappingDF.to_csv(saveMappingPath, index=False)
-            break
+            del mappingDF
 else:
     del mappingDF
 
 
 ### User chooses (GUI) whether he/she wants to substitute IDs in filenames (the IDs must have been identified in the tables read in before) ###
 # If this is the case, the respective files and a folder for saving the copies with new filenames must be chosen (GUI)
-fileNameEdit = False
 fileNameEdit = GUI.editingFilenames()
 if fileNameEdit == True:
     try:
-        inPlace = GUI.safeInPlace()
+        ### User chooses (GUI) whether he/she wants to go over a whole folder (including subfolders) and all files contained or select specific files
+        if GUI.folderMode() == True:  
+            files = listFilesInFolder(folderPath=GUI.ChooseLoadingFolder(tablesOnly=False), patterns=None)
+        else:
+            files = GUI.ChooseFiles()
+
+        inPlace = GUI.safeInPlace()  # The user is asked whether to save the results in the results in the same folder(s) as the original files 
         if inPlace == False:
-            saveDirFiles = GUI.ChooseSavingFolder()
-        else: 
+            while True:
+                saveDirFiles = GUI.ChooseSavingFolder()  # The user has to choose where to save the results
+                if os.path.isdir(saveDirFiles):
+                    break
+                elif saveDirFiles == None:  # This is the case if the user clicks on "Cancel"
+                    print("editing filenames was canceled")
+                    saveDirFiles = "placeholder"
+                    fileNameEdit = False
+                    break
+                else:
+                    GUI.InvalidFolder()
+                    pass
+        else:
             saveDirFiles = "placeholder"
-        cleanFilenames(filesIn=GUI.ChooseFiles(), saveFolder=saveDirFiles, originalIds=uniqueOriginalIds, newIDs=newIds, inPlace=inPlace)
+        if fileNameEdit == True:  # Check that the operation has not been canceled in the meantime
+            cleanFilenames(filesIn=files, saveFolder=saveDirFiles, originalIds=uniqueOriginalIds, newIDs=newIds, inPlace=inPlace)
     except:
         print("An error occured while trying to change filenames :-(")
 else:

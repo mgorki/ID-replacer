@@ -1,9 +1,21 @@
 import PySimpleGUI as sg
-#import os.path
+
 
 ## Messages ##
+msgWelcome = """Welcome to the ID-replacer, version {}!
+
+Please mind that - although we have tested this program to some degree - this program is still in development and you should always check that the results obtained are valid. 
+
+By clicking on continue you agree that any use of or reliance on this program, the contents created by this program or the information provided through this program will be at your sole risk. 
+We make no representations or warranties whatsoever as to the accuracy of the information or results provided by this program."""
+
+msgLoadingFolderTables = """Select Folders from which IDs should be removed.
+-> in a first step all json (txt), csv (txt) and xlsx files will be considered. Changing filenames of e.g., images follows in a second step"""
+
+msgLoadingFolderFilenames = """Select Folders that contains files with filenames from which IDs should be removed."""
+
 msgLoadingWindow = "Loading input file"
-msgLoadingFolder = "Choose the folder where the file from the CAM-App is stored"
+#msgLoadingFolder = "Choose the folder where the file from the CAM-App is stored"
 msgSavingFolder = "Choose a folder for saving the output"
 
 msgSavingWindow = "Defining output file"
@@ -11,6 +23,24 @@ msgLoadingFilename = "Specify the name of the file (without the ending .txt)"
 msgSavingFilename = "Choose a filename (files of the same name will be overwritten). The ending .txt will be created automatically"
 
 msgLoadingModel = "Choose the folder where your language model file is stored"
+
+
+def welcome(progVer):
+    layout = [[sg.Text(msgWelcome.format(str(progVer)))], [sg.Button("Continue"), sg.Button("Abort")]] #Tables saved to %s"%(str(savepathTables))))], [sg.Button("OK")]]
+
+    # Create the window
+    window = sg.Window("Welcome", layout)
+
+    # Create an event loop
+    while True:
+        event, values = window.read()
+        # End program if user closes window or
+        # presses the OK button
+        if event == "Continue" or event == sg.WIN_CLOSED or event == "Abort":
+            break
+
+    window.close()
+    return event
 
 
 def MissingPath():
@@ -101,14 +131,24 @@ def safeInPlace():
 
 
 def folderMode():
-    ch = sg.popup_ok_cancel("Do you want to apply ID substitution on a whole folder (including subfolders and all files contained)? ", 
-    "Press OK to continue editing whole folders", 
-    "Press Cancel to edit specific files but not whole folders",  title="Apply on whole folder?")
-    if ch=="OK":
-        print ("You pressed OK")
+    layout = [[sg.Text(("Do you want to apply ID substitution on an entire folder (including subfolders and all files contained) or do you want so select specific files?"))], [sg.Button("Apply on an entire folder"), sg.Button("Select specific files")],] 
+    # Create the window
+    window = sg.Window("Apply on whole folder?", layout)
+    
+
+    # Create an event loop
+    while True:
+        event, values = window.read()
+        # End program if user closes window or
+        # presses the OK button
+        if (event == "Apply on an entire folder") or (event == "Select specific files") or (event == sg.WIN_CLOSED):
+            break
+    window.close()
+    if event == "Apply on an entire folder":
+        print("you chose to apply on an entire folder")
         return True
-    if ch=="Cancel":
-        print ("You pressed Cancel")
+    else:
+        print("you chose to select specific files")
         return False
 
 
@@ -122,8 +162,9 @@ def overWriteConfirmation(filename):
         return False
 
 
-def ChooseFiles():
-    files = sg.popup_get_file('Select files from which IDs should be removed', multiple_files=True, title="Select files")
+def ChooseFiles(fileTypes=None):
+    fileTypes = ("Any type", "*") if fileTypes == None else tuple([("Any type", "*"), *fileTypes])
+    files = sg.popup_get_file('Select files from which IDs should be removed', multiple_files=True, file_types=(fileTypes), title="Select files")
     print(files.split(';'))
     if files == "" or None:
         MissingPath()
@@ -132,9 +173,9 @@ def ChooseFiles():
         return files.split(';')
 
 
-def ChooseLoadingFolder():
-    folder = sg.popup_get_folder('''Select Folders from which IDs should be removed.
-    -> in a first step all json (txt), csv (txt) and xlsx files will be considered. Images follow in a second step''', title="Loading all from folder")
+def ChooseLoadingFolder(tablesOnly: bool = True):
+    msg = msgLoadingFolderTables if tablesOnly else msgLoadingFolderFilenames
+    folder = sg.popup_get_folder(msg, title="Loading all from folder")
     if folder == "" or None:
         MissingPath()
         ChooseLoadingFolder()
@@ -178,7 +219,8 @@ def ChooseIdentifierColumn():
     identInp = sg.popup_get_text('''Please, enter the EXACT names of the columns from which IDs can be identified, separated by a KOMMA.  
     -> Do NOT use blank spaces after the komma (unless they are part of the column name). 
     -> Mind CAPITALIZATION. 
-    -> ONLY IDs that are also contained in the specified columns can be substituted, even though they will be substituted if they appear at another part of the table/json files''', title="Enter column-names")
+    -> The IDs identified in this step can in the following steps be substituted in other places too
+       but ONLY IDs that can be identified in the specified columns now can be substituted later.''', title="Enter column-names")
     if identInp == "" or None:
         MissingInput()
         ChooseIdentifierColumn()

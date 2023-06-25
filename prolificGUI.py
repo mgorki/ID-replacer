@@ -171,6 +171,16 @@ def ChooseFiles(fileTypes=None):
         ChooseFiles()
     else:
         return files.split(';')
+    
+
+def ChooseMappingFile():
+    file = sg.popup_get_file('Select already existing mapping file (csv)', multiple_files=False, title="Select mapping files")
+    print(file.split(';'))
+    if file == "" or None:
+        MissingPath()
+        ChooseMappingFile()
+    else:
+        return file
 
 
 def ChooseLoadingFolder(tablesOnly: bool = True):
@@ -182,6 +192,27 @@ def ChooseLoadingFolder(tablesOnly: bool = True):
     else:
         print(folder)
         return folder
+
+
+def loadMappingFile():
+    layout = [[sg.Text(("""Do you want to load an existing mapping of new IDs to original IDs from a csv file previously created by this program?
+        -> column names must be originalId and newId"""))], 
+        [sg.Button("Yes, load existing mapping"), sg.Button("No, create new mapping")],] #Tables saved to %s"%(str(savepathTables))))], [sg.Button("OK")]]
+    
+    window = sg.Window("Load existing mapping?", layout) # Create the window
+
+    # Create an event loop
+    while True:
+        event, values = window.read()
+        # End program if user closes window or
+        # presses the OK button
+        if (event == "Yes, load existing mapping") or (event == "No, create new mapping") or (event == sg.WIN_CLOSED):
+            break
+    window.close()
+    if event == "Yes, load existing mapping":
+        return True
+    else:
+        return False
 
 
 def saveInPlace():

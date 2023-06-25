@@ -6,7 +6,7 @@ import openpyxl
 import prolificGUI as GUI 
 
 
-version = "0.9"
+version = "0.9.1"
 tableFileTypes = [("txt", "*.txt"),("json", "*.json"),("Excel", "*.xlsx"), ("csv", "*.csv")]
 notableFileTypes = [("txt", "*.txt"),("json", "*.json"),("Excel", "*.xlsx"), ("csv", "*.csv"), ("png", "*.png"), ("svg", "*.svg"), ("jpg", "*.jpg"), ("jpeg", "*.jpeg")]
 
@@ -37,6 +37,36 @@ def listFilesInFolder(folderPath: str, patterns = None) -> list:
     return filepaths                
 
 
+### Function to load a csv that contains the mapping of original to new IDs into a pandas dataframe
+def loadMappingFile(mappingFilePath: str) -> pd.DataFrame:
+    original = False
+    new = False
+
+    try:
+        loadedMappingDF = pd.read_csv(mappingFilePath)
+        if "originalId" in loadedMappingDF.columns:
+            print("column of original IDs found")
+            original = True        
+        else:
+            print("column of original IDs NOT found")
+
+        if "newId" in loadedMappingDF.columns:
+            print("column of new IDs found")
+            new = True
+        else:
+            print("column of new IDs NOT found")
+
+    except:
+        print("There was an error loading the mapping file")
+        
+    if original and new:
+        return loadedMappingDF
+    else:
+        print("Mapping file not valid. Entries can NOT be considered.")
+        loadedMappingDF = pd.DataFrame(columns=["originalId","newId"])
+        return loadedMappingDF
+
+
 ### Goes over all table files provided (currently supported formats: xlsx, csv, json (, txt)) and:
 # 1. Collects all unique IDs that are contained in all files in columns of the names contained in idColNames
 # 2. Creates a unique new substitute ID for each original ID
@@ -45,7 +75,7 @@ def listFilesInFolder(folderPath: str, patterns = None) -> list:
 #   (3b) a tuple of the original IDs
 #   (3c) a tuple of the new IDs
 #   (3d) a pandas dataframe summarizing the mapping of new IDs to the original IDs
-def cleanTables(filesIn, idColNames, filenamePrefix, saveFolder, inPlace=False):
+def cleanTables(filesIn, idColNames, filenamePrefix, saveFolder, inPlace=False, loadMapping=None):  # If loadMapping != None it must be a pandas dataframe with the columns originalId and newId
     tables = []
     mappingDF = pd.DataFrame(columns=["originalId"])
     originalIds = []
@@ -89,12 +119,16 @@ def cleanTables(filesIn, idColNames, filenamePrefix, saveFolder, inPlace=False):
         else:
             print(str(fIn), " has an unknown file format. Crashing now :-(")
 
-        for idColName in idColNames:
-            try:
-                originalIds.extend(table.df[idColName].values)  # column with the original ID 
-                #print(originalIds)
-            except:
-                pass               
+        if not (loadMapping is None):
+            for idColName in idColNames:
+                try:
+                    originalIds.extend(table.df[idColName].values)  # column with the original ID 
+                    #print(originalIds)
+                except:
+                    pass    
+        else: 
+            pass       
+
         try:
             table.filenameOut = fOut
             #print(table.filenameOut)
@@ -105,17 +139,26 @@ def cleanTables(filesIn, idColNames, filenamePrefix, saveFolder, inPlace=False):
     try:
         originalIds = [i for i in originalIds if i != ""]
     except:
-        print("No empty IDs found")
-    mappingDF["originalId"] = originalIds
-    #print("mapping before dropping duplicates", mappingDF)
-    mappingDF = mappingDF.drop(mappingDF[mappingDF.originalId.isnull()].index)  # Dropping rows where the original ID is an empty cell
-    mappingDF = mappingDF.drop(mappingDF[mappingDF.originalId == ""].index)  # Dropping rows where the original ID is just an empty string 
-    mappingDF = mappingDF.drop_duplicates(subset=['originalId']).reset_index(drop=True)#.dropna(inplace = True)  # Getting rid of duplicates and resetting index
-    #print(mappingDF)
-    #print(mappingDF["originalId"].index.values)
-    mappingDF["newId"] = mappingDF["originalId"].index.values.astype(int) + 1  # "new" IDs created from the index of the old IDs //  mappingDF["originalId"].index.values + 1
-    #print(mappingDF["newId"])
-    #print(mappingDF["originalId"])
+        if loadMapping is None:
+            print("No non-empty IDs found")
+        else: 
+            print("All IDs come from the mapping file you provided. No further IDs added")
+    
+    if loadMapping is None:  # If the mapping of new IDs to original IDs is not allready provided by a mapping file
+        mappingDF["originalId"] = originalIds
+        #print("mapping before dropping duplicates", mappingDF)
+        mappingDF = mappingDF.drop(mappingDF[mappingDF.originalId.isnull()].index)  # Dropping rows where the original ID is an empty cell
+        mappingDF = mappingDF.drop(mappingDF[mappingDF.originalId == ""].index)  # Dropping rows where the original ID is just an empty string 
+        mappingDF = mappingDF.drop_duplicates(subset=['originalId']).reset_index(drop=True)#.dropna(inplace = True)  # Getting rid of duplicates and resetting index
+        #print(mappingDF)
+        #print(mappingDF["originalId"].index.values)
+        mappingDF["newId"] = mappingDF["originalId"].index.values.astype(int) + 1  # "new" IDs created from the index of the old IDs //  mappingDF["originalId"].index.values + 1
+        #print(mappingDF["newId"])
+        #print(mappingDF["originalId"])
+    else:  # If the mapping of new IDs to original IDs is provided by an already existing mapping file
+        mappingDF["originalId"] = loadMapping["originalId"]
+        mappingDF["newId"] = loadMapping["newId"].astype('int')
+
     originalIdsUnique = tuple(mappingDF["originalId"])
     newIds = tuple(mappingDF["newId"])
 
@@ -185,6 +228,15 @@ if not GUI.welcome(version) == "Continue":  # Show welcome-window.
     print("Operation aborted. Program is closing.")  # If the user chooses another optiopn than to click on continue print message...  
     exit()  # ...and exit
 
+
+### User chooses whether to apply mapping from already existing mapping-file (csv)
+if GUI.loadMappingFile() == True:
+    mappingFile = loadMappingFile(GUI.ChooseMappingFile())
+else:
+    print("no mapping file used")
+    mappingFile = None
+
+
 ### User chooses (GUI) whether he/she wants to go over a whole folder (including subfolders) and all its redable content or select specific files
 if GUI.folderMode() == True:  
     files = listFilesInFolder(folderPath=GUI.ChooseLoadingFolder(), patterns=[".json", ".csv", ".xlsx", ".txt"])
@@ -214,10 +266,15 @@ if safeTables == True:
         saveDirTables = "placeholder"
 else:
     saveDirTables = "placeholder"
-identifierColNames = GUI.ChooseIdentifierColumn()
+
+if mappingFile is None:
+    print("no mapping file used")
+    identifierColNames = GUI.ChooseIdentifierColumn()
+else:
+    identifierColNames = []
 prefix=GUI.ChooseFilePrefix()
 
-tables, uniqueOriginalIds, newIds, mappingDF = cleanTables(filesIn=files, idColNames=identifierColNames, filenamePrefix=prefix, saveFolder=saveDirTables, inPlace=inPlace)
+tables, uniqueOriginalIds, newIds, mappingDF = cleanTables(filesIn=files, idColNames=identifierColNames, filenamePrefix=prefix, saveFolder=saveDirTables, inPlace=inPlace, loadMapping=mappingFile)
 if safeTables:
     writeTables(tables=tables, originalIds=uniqueOriginalIds, newIds=newIds) # TableFiles are written
 else:

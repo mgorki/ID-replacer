@@ -119,7 +119,7 @@ def cleanTables(filesIn, idColNames, filenamePrefix, saveFolder, inPlace=False, 
         else:
             print(str(fIn), " has an unknown file format. Crashing now :-(")
 
-        if not (loadMapping is None):
+        if loadMapping is None:
             for idColName in idColNames:
                 try:
                     originalIds.extend(table.df[idColName].values)  # column with the original ID 
